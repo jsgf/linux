@@ -1105,8 +1105,39 @@ iter_add_single_normal_entry(struct hist_entry_iter *iter, struct addr_location 
 	struct evsel *evsel = iter->evsel;
 	struct perf_sample *sample = iter->sample;
 	struct hist_entry *he;
+	struct addr_location inline_al;
+	struct addr_location *use_al = al;
 
-	he = hists__add_entry(evsel__hists(evsel), al, iter->parent, NULL, NULL,
+	/*
+	 * If inline resolution is enabled, try to find the deepest inline
+	 * function at this sample address. For flat profiles (no callgraph),
+	 * we want to show the innermost inline function rather than the
+	 * outer function symbol.
+	 */
+	if (symbol_conf.inline_name && al->map && al->sym) {
+		struct dso *dso = map__dso(al->map);
+		struct inline_node *inline_node;
+
+		inline_node = dso__parse_addr_inlines(dso, al->addr, al->sym);
+		if (inline_node && !list_empty(&inline_node->val)) {
+			struct inline_list *ilist;
+
+			/*
+			 * Get the deepest (first in list) inline function.
+			 * The list is ordered with deepest call first.
+			 */
+			ilist = list_first_entry(&inline_node->val,
+						 struct inline_list, list);
+
+			/* Use the inline symbol and source location */
+			inline_al = *al;
+			inline_al.sym = ilist->symbol;
+			inline_al.srcline = ilist->srcline;
+			use_al = &inline_al;
+		}
+	}
+
+	he = hists__add_entry(evsel__hists(evsel), use_al, iter->parent, NULL, NULL,
 			      NULL, sample, true);
 	if (he == NULL)
 		return -ENOMEM;
