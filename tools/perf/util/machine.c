@@ -2090,6 +2090,8 @@ struct iterations {
 	u64 cycles;
 };
 
+static int append_inlines(struct callchain_cursor *cursor, struct map_symbol *ms, u64 ip);
+
 static int add_callchain_ip(struct thread *thread,
 			    struct callchain_cursor *cursor,
 			    struct symbol **parent,
@@ -2169,6 +2171,11 @@ static int add_callchain_ip(struct thread *thread,
 	ms.maps = maps__get(al.maps);
 	ms.map = map__get(al.map);
 	ms.sym = al.sym;
+
+	/* Try to resolve inline functions, similar to DWARF unwinding path */
+	if (append_inlines(cursor, &ms, ip) == 0)
+		goto out;
+
 	srcline = callchain_srcline(&ms, al.addr);
 	err = callchain_cursor_append(cursor, ip, &ms,
 				      branch, flags, nr_loop_iter,
