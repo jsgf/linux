@@ -121,11 +121,11 @@ static int addr2line(const char *dso_name, u64 addr, char **file, unsigned int *
 	int ret;
 
 	ret = llvm__addr2line(dso_name, addr, file, line_nr, dso, unwind_inlines, node, sym);
-	if (ret > 0)
+	if (ret >= 0)
 		return ret;
 
 	ret = libbfd__addr2line(dso_name, addr, file, line_nr, dso, unwind_inlines, node, sym);
-	if (ret > 0)
+	if (ret >= 0)
 		return ret;
 
 	return cmd__addr2line(dso_name, addr, file, line_nr, dso, unwind_inlines, node, sym);
@@ -173,8 +173,8 @@ char *__get_srcline(struct dso *dso, u64 addr, struct symbol *sym,
 	if (dso_name == NULL)
 		goto out_err;
 
-	if (!addr2line(dso_name, addr, &file, &line, dso,
-		       unwind_inlines, /*node=*/NULL, sym))
+	if (addr2line(dso_name, addr, &file, &line, dso,
+		       unwind_inlines, /*node=*/NULL, sym) < 0)
 		goto out_err;
 
 	srcline = srcline_from_fileline(file, line);
@@ -220,8 +220,8 @@ char *get_srcline_split(struct dso *dso, u64 addr, unsigned *line)
 	if (dso_name == NULL)
 		goto out_err;
 
-	if (!addr2line(dso_name, addr, &file, line, dso, /*unwind_inlines=*/true,
-			/*node=*/NULL, /*sym=*/NULL))
+	if (addr2line(dso_name, addr, &file, line, dso, /*unwind_inlines=*/true,
+			/*node=*/NULL, /*sym=*/NULL) < 0)
 		goto out_err;
 
 	dso__set_a2l_fails(dso, 0);

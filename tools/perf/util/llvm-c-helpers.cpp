@@ -87,41 +87,47 @@ int llvm_addr2line(const char *dso_name, u64 addr,
 			symbolizer->symbolizeInlinedCode(dso_name,
 							 sectioned_addr);
 		if (!res_or_err)
-			return 0;
+			return -1;
 		unsigned num_frames = res_or_err->getNumberOfFrames();
 		if (num_frames == 0)
 			return 0;
 
 		if (extract_file_and_line(res_or_err->getFrame(0),
 					  file, line) == 0)
-			return 0;
+			return -1;
 
 		*inline_frames = (llvm_a2l_frame *)calloc(
 			num_frames, sizeof(**inline_frames));
 		if (*inline_frames == nullptr)
-			return 0;
+			return -1;
 
 		for (unsigned i = 0; i < num_frames; ++i) {
 			const DILineInfo &src = res_or_err->getFrame(i);
-
 			llvm_a2l_frame &dst = (*inline_frames)[i];
-			if (src.FileName == "<invalid>")
+			if (src.FileName == "<invalid>") {
 				/* Match the convention of libbfd. */
 				dst.filename = nullptr;
-			else
+			} else {
 				dst.filename = strdup(src.FileName.c_str());
+				if (dst.filename == nullptr) {
+					for (unsigned j = 0; j < i; ++j) {
+						zfree(&(*inline_frames)[j].filename);
+						zfree(&(*inline_frames)[j].funcname);
+					}
+					zfree(inline_frames);
+					return -1;
+				}
+			}
 			dst.funcname = strdup(src.FunctionName.c_str());
-			dst.line = src.Line;
-
-			if (dst.filename == nullptr ||
-			    dst.funcname == nullptr) {
+			if (dst.funcname == nullptr) {
 				for (unsigned j = 0; j <= i; ++j) {
 					zfree(&(*inline_frames)[j].filename);
 					zfree(&(*inline_frames)[j].funcname);
 				}
 				zfree(inline_frames);
-				return 0;
+				return -1;
 			}
+			dst.line = src.Line;
 		}
 
 		return num_frames;
@@ -132,8 +138,8 @@ int llvm_addr2line(const char *dso_name, u64 addr,
 		Expected<DILineInfo> res_or_err =
 			symbolizer->symbolizeCode(dso_name, sectioned_addr);
 		if (!res_or_err)
-			return 0;
-		return extract_file_and_line(*res_or_err, file, line);
+			return -1;
+		return extract_file_and_line(*res_or_err, file, line) ? 1 : -1;
 	}
 }
 

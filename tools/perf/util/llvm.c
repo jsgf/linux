@@ -59,7 +59,7 @@ int llvm__addr2line(const char *dso_name __maybe_unused, u64 addr __maybe_unused
 		}
 		if (inline_list__append(inline_sym, srcline, node) != 0) {
 			free_llvm_inline_frames(inline_frames, num_frames);
-			return 0;
+			return -1;
 		}
 	}
 	free_llvm_inline_frames(inline_frames, num_frames);
